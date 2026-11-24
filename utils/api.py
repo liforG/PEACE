@@ -5,27 +5,65 @@ import random
 import base64
 import common
 import logging
+from functools import lru_cache
 from io import BytesIO
+from uuid import uuid4
 from PIL import Image
 from mimetypes import guess_type
 import openai
-from openai import AzureOpenAI
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from openai import AzureOpenAI, OpenAI
 
 azure_endpoint = ""# to be filled.
 identity_id = ""# to be filled.
-token_provider = get_bearer_token_provider(
-    DefaultAzureCredential(managed_identity_client_id=identity_id),
-    "https://cognitiveservices.azure.com/.default")
 api_version = "2024-08-01-preview"
-client = AzureOpenAI(
-    azure_endpoint=azure_endpoint,
-    azure_ad_token_provider=token_provider,
-    api_version=api_version,
-    max_retries=0,
-)
+
+
+@lru_cache(maxsize=1)
+def _get_client():
+    if common.llm_provider == "opencode":
+        api_key = os.getenv("OPENCODE_API_KEY")
+        if not api_key or not api_key.strip():
+            raise ValueError("Set OPENCODE_API_KEY to use the OpenCode provider.")
+
+        base_url = os.getenv(
+            "OPENCODE_BASE_URL", "https://opencode.ai/inference/openai/v1"
+        ).rstrip("/")
+        headers = {}
+        if base_url == "https://opencode.ai/inference/go/openai/v1":
+            headers["x-opencode-session"] = f"ses_{uuid4().hex}"
+
+        return OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            default_headers=headers,
+            max_retries=0,
+        )
+
+    if common.llm_provider != "azure":
+        raise ValueError("PEACE_LLM_PROVIDER must be 'azure' or 'opencode'.")
+
+    from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+
+    token_provider = get_bearer_token_provider(
+        DefaultAzureCredential(managed_identity_client_id=identity_id),
+        "https://cognitiveservices.azure.com/.default",
+    )
+    return AzureOpenAI(
+        azure_endpoint=azure_endpoint,
+        azure_ad_token_provider=token_provider,
+        api_version=api_version,
+        max_retries=0,
+    )
+
 
 def answer_wrapper(messages, max_tks=2048, temperature=0.0, structured=False, tools=None):
+    client = _get_client()
+    request_options = {}
+    if structured or common.llm_provider == "azure":
+        request_options["response_format"] = {"type": "json_object" if structured else "text"}
+    if tools is not None:
+        request_options.update(tools=tools, tool_choice="auto")
+
     models = [common.model_name]
     max_trial = len(models)
     current = random.randint(0, len(models)-1)
@@ -33,26 +71,18 @@ def answer_wrapper(messages, max_tks=2048, temperature=0.0, structured=False, to
     for i in range(max_trial):
         try:
             response = None
+            response = client.chat.completions.create(
+                model=models[current],
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tks,
+                **request_options,
+            )
+            message = response.choices[0].message
             if tools is not None:
-                response = client.chat.completions.create(
-                    model=models[current],
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tks,
-                    response_format={"type": "json_object" if structured else "text"},
-                    tools = tools,
-                    tool_choice = "auto",
-                )
-                answer = response.choices[0].message
+                answer = message
             else:
-                response = client.chat.completions.create(
-                    model=models[current],
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tks,
-                    response_format={"type": "json_object" if structured else "text"},
-                )
-                answer = response.choices[0].message.content
+                answer = message.content
         # https://github.com/openai/openai-python/blob/main/openai/error.py
         except openai.RateLimitError as e:
             logging.warning(f"RateLimitError: {e}. Retrying...")

@@ -5,7 +5,8 @@ from datetime import date
 import api
 
 echo = False
-model_name = "gpt-4o"
+llm_provider = os.getenv("PEACE_LLM_PROVIDER", "azure").strip().lower()
+model_name = "deepseek-v4.1-flash" if llm_provider == "opencode" else "gpt-4o"
 dataset_source = "usgs"
 
 # initialize Google Earth Engine.
