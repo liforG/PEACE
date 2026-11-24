@@ -8,7 +8,8 @@ class prompt_enhanced_QA:
         relation_path = os.path.join(common.cache_path(), "component", "relations.json")
         self.components = list(prompt.components)
         if os.path.exists(relation_path):
-            self.component_relations = json.loads(open(relation_path).read())
+            with open(relation_path, encoding="utf-8") as f:
+                self.component_relations = json.load(f)
         else:
             examples = [
                 {"component1": "main_map", "component2": "legend", "relation": "XXX"},
@@ -32,8 +33,8 @@ class prompt_enhanced_QA:
     def select(self, question, question_type):
         component_path = os.path.join(common.cache_path(), "component", question_type + ".json")
         if os.path.exists(component_path):
-            selected_components = json.loads(open(component_path).read())
-            return selected_components
+            with open(component_path, encoding="utf-8") as f:
+                return json.load(f)
 
         examples = {"1": "XXX", "2": "XXX"}
         instructions = [
@@ -46,7 +47,7 @@ class prompt_enhanced_QA:
         ]
         answer = api.answer_wrapper(messages, structured=True)
         try:
-            selected_components = eval(answer)
+            selected_components = json.loads(answer)
             selected_components = list(map(lambda x: x[1], sorted(selected_components.items(), key=lambda x: x[0])))
         except:
             selected_components = None

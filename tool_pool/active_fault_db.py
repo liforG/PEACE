@@ -1,11 +1,12 @@
-import geopandas as gpd
-from shapely.geometry import box
-
 class active_fault_db:
     def __init__(self, db_path="./dependencies/knowledge/gem_active_faults_harmonized.geojson"):
+        import geopandas as gpd
+
         self.fault_db = gpd.read_file(db_path)
 
     def get_active_faults(self, min_lon, min_lat, max_lon, max_lat):
+        from shapely.geometry import box
+
         # Create a bounding box from the latitude and longitude ranges
         bbox = box(min_lon, min_lat, max_lon, max_lat)
         # Filter the LineStrings that intersect with the bounding box

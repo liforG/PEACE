@@ -1,11 +1,15 @@
 import os
 import json
+from functools import lru_cache
 from utils import api, prompt, vision, common
 from modules import hierarchical_information_extraction, domain_knowledge_injection, prompt_enhanced_QA
 
 hie = hierarchical_information_extraction()
-dki = domain_knowledge_injection()
 peqa = prompt_enhanced_QA()
+
+@lru_cache(maxsize=1)
+def _get_dki():
+    return domain_knowledge_injection()
 
 def copilot(image_path, question, question_type, copilot_modes=["HIE", "DKI", "PEQA"]):
     # Content filter.
@@ -20,7 +24,7 @@ def copilot(image_path, question, question_type, copilot_modes=["HIE", "DKI", "P
 
     # Domain knowledge injection module.
     if "DKI" in copilot_modes:
-        knowledge = dki.consult(question, information)
+        knowledge = _get_dki().consult(question, information)
     else:
         knowledge = None
 

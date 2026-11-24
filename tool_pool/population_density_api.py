@@ -1,22 +1,24 @@
 import os
+from functools import cached_property
 os.sys.path.append(f"{os.path.dirname(os.path.realpath(__file__))}/..")
 from utils import common
 
 class population_density_api:
-    def __init__(self):
-        # load WorldPop dataset.
-        self.dataset = common.ee.ImageCollection("WorldPop/GP/100m/pop").mosaic()
+    @cached_property
+    def dataset(self):
+        return common.get_earth_engine().ImageCollection("WorldPop/GP/100m/pop").mosaic()
 
     def get_population_density(self, min_lon, min_lat, max_lon, max_lat, scale=100):
+        ee = common.get_earth_engine()
         # locate region
-        roi = common.ee.Geometry.Rectangle([min_lon, min_lat, max_lon, max_lat])
+        roi = ee.Geometry.Rectangle([min_lon, min_lat, max_lon, max_lat])
 
         # clip specific region
         clipped_image = self.dataset.clip(roi)
 
         # calculate population of specific region
         population_total = clipped_image.reduceRegion(
-            reducer=common.ee.Reducer.sum(),
+            reducer=ee.Reducer.sum(),
             geometry=roi,
             scale=scale,
             maxPixels=1e8,

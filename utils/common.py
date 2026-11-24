@@ -1,7 +1,7 @@
 import os
 import re
-import ee
 from datetime import date
+from functools import lru_cache
 import api
 
 echo = False
@@ -9,9 +9,13 @@ llm_provider = os.getenv("PEACE_LLM_PROVIDER", "azure").strip().lower()
 model_name = "deepseek-v4.1-flash" if llm_provider == "opencode" else "gpt-4o"
 dataset_source = "usgs"
 
-# initialize Google Earth Engine.
-ee.Authenticate(auth_mode="notebook")
-ee.Initialize()
+@lru_cache(maxsize=1)
+def get_earth_engine():
+    import ee
+
+    ee.Authenticate(auth_mode="notebook")
+    ee.Initialize()
+    return ee
 
 def today_date():
     today = date.today()

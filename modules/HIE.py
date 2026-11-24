@@ -16,8 +16,8 @@ class hierarchical_information_extraction:
         name = common.path2name(image_path)
         meta_path = os.path.join(common.cache_path(), "meta", name + ".json")
         if os.path.exists(meta_path):
-            meta = json.loads(open(meta_path).read())
-            return meta
+            with open(meta_path, encoding="utf-8") as f:
+                return json.load(f)
 
         # get headers of geologic map.
         meta = dict()
@@ -83,7 +83,9 @@ class hierarchical_information_extraction:
             ]
 
             answer = api.answer_wrapper(messages, structured=True)
-            infos = eval(answer)
+            if answer is None:
+                raise RuntimeError(f"No model answer while extracting {region_name} from {name}.")
+            infos = json.loads(answer)
             key_value_pairs = prompt.get_basic_information(region_name, infos)
             for key, value in key_value_pairs:
                 meta["information"][key] = value

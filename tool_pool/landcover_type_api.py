@@ -1,12 +1,10 @@
 import os
+from functools import cached_property
 os.sys.path.append(f"{os.path.dirname(os.path.realpath(__file__))}/..")
 from utils import common
 
 class landcover_type_api:
     def __init__(self):
-        # load ESA WorldCover image
-        self.dataset = common.ee.ImageCollection("ESA/WorldCover/v200").mosaic()
-
         # define the landcover type
         self.landcover_class_names = {
             10: "Trees",
@@ -22,15 +20,20 @@ class landcover_type_api:
             100: "Moss and Lichen"
         }
 
+    @cached_property
+    def dataset(self):
+        return common.get_earth_engine().ImageCollection("ESA/WorldCover/v200").mosaic()
+
     def get_landcover_distribution(self, min_lon, min_lat, max_lon, max_lat, scale=100):
+        ee = common.get_earth_engine()
         # locate region
-        roi = common.ee.Geometry.Rectangle([min_lon, min_lat, max_lon, max_lat])
+        roi = ee.Geometry.Rectangle([min_lon, min_lat, max_lon, max_lat])
 
         # clip specific region
         clipped_image = self.dataset.clip(roi)
 
         # calculate distribution of each landcover type
-        reducer = common.ee.Reducer.frequencyHistogram()
+        reducer = ee.Reducer.frequencyHistogram()
         pixel_counts = clipped_image.reduceRegion(
             reducer=reducer,
             geometry=roi,

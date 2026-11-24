@@ -1,9 +1,6 @@
 import os
 import json
 from enum import Enum
-from deep_translator import GoogleTranslator
-from transformers import AutoModel
-from sentence_transformers import util
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -16,6 +13,8 @@ class geological_knwoledge_type(Enum):
 
 class k2_knowledge_db:
     def __init__(self):
+        from transformers import AutoModel
+
         self.embedding_model = AutoModel.from_pretrained("jinaai/jina-embeddings-v3", trust_remote_code=True)
 
         # load k2 expert knowledge base of rock type
@@ -49,34 +48,42 @@ class k2_knowledge_db:
         self.downstream_task_key_embeddings = self.embedding_model.encode(list(self.downstream_task_kb.keys()), task="text-matching")
 
     def semantic_match(self, key_embeddings, d, target, threshold):
+        from sentence_transformers import util
+
         keys = list(d.keys())
         target_embedding = self.embedding_model.encode(target, task="text-matching")
         similarities = util.cos_sim(target_embedding, key_embeddings)[0]
         matched_keys = [keys[i] for i in range(len(keys)) if similarities[i] >= threshold]
         return {key: d[key] for key in matched_keys}
 
+    @staticmethod
+    def _translate(query):
+        from deep_translator import GoogleTranslator
+
+        return GoogleTranslator(source="auto", target="en").translate(query)
+
     def get_rock_type(self, query):
-        query = GoogleTranslator(source="auto", target="en").translate(query)
+        query = self._translate(query)
         rock_type = self.semantic_match(self.rock_type_embeddings, self.rock_type_kb, query, threshold=0.85)
         return rock_type
 
     def get_rock_age(self, query):
-        query = GoogleTranslator(source="auto", target="en").translate(query)
+        query = self._translate(query)
         rock_age = self.semantic_match(self.rock_age_embeddings, self.rock_age_kb, query, threshold=0.85)
         return rock_age
 
     def get_rock_knowledge(self, query):
-        query = GoogleTranslator(source="auto", target="en").translate(query)
+        query = self._translate(query)
         rock_detail = self.semantic_match(self.rock_detail_embeddings, self.rock_detail_kb, query, threshold=0.85)
         return rock_detail
 
     def get_component_usage_knowledge(self, query):
-        query = "What is the function of " + GoogleTranslator(source="auto", target="en").translate(query) + " in geologic maps?"
+        query = "What is the function of " + self._translate(query) + " in geologic maps?"
         component_usage_knowledge = self.semantic_match(self.component_usage_key_embeddings, self.component_usage_kb, query, threshold=0.85)
         return component_usage_knowledge
 
     def get_downstream_task_knowledge(self, query):
-        query = "How do geologists conduct the task of " + GoogleTranslator(source="auto", target="en").translate(query) + "?"
+        query = "How do geologists conduct the task of " + self._translate(query) + "?"
         downstream_task_knowledge = self.semantic_match(self.downstream_task_key_embeddings, self.downstream_task_kb, query, threshold=0.85)
         return downstream_task_knowledge
 
